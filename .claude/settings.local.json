@@ -1,0 +1,22 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(pip install *)",
+      "Bash(python -c ' *)",
+      "Bash(conda run *)",
+      "Bash(conda env *)",
+      "Bash('C:\\\\Users\\\\manue\\\\anaconda3\\\\envs\\\\AddressIntelligenceKit/python.exe' -c 'import claude_agent_sdk; print\\([x for x in dir\\(claude_agent_sdk\\) if not x.startswith\\('\\\\''_'\\\\''\\)]\\)')",
+      "Bash('C:\\\\Users\\\\manue\\\\anaconda3\\\\envs\\\\AddressIntelligenceKit\\\\python.exe' -c ' *)",
+      "Bash('C:\\\\Users\\\\manue\\\\anaconda3\\\\envs\\\\AddressIntelligenceKit\\\\python.exe' -m pip install pytest pytest-asyncio -q)",
+      "Bash('C:\\\\Users\\\\manue\\\\anaconda3\\\\envs\\\\AddressIntelligenceKit\\\\python.exe' -m pytest tests/test_onboarding.py tests/test_support.py -v --asyncio-mode=auto)",
+      "Bash(where gh *)",
+      "Bash(find /usr -name \"gh\")",
+      "Read(//c/Users/manue/**)",
+      "PowerShell(Get-Command gh -ErrorAction SilentlyContinue)",
+      "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" --version 2>$null; & \"$env:LOCALAPPDATA\\\\Programs\\\\GitHub CLI\\\\gh.exe\" --version 2>$null)",
+      "Bash(UBIDATA_BASE_URL=x UBIDATA_API_KEY=x ANTHROPIC_API_KEY=x C:/Users/manue/anaconda3/envs/AddressIntelligenceKit/python.exe -m pytest tests/test_logistics.py tests/test_data_cleaning.py -v)",
+      "Bash(UBIDATA_BASE_URL=x UBIDATA_API_KEY=x ANTHROPIC_API_KEY=x C:/Users/manue/anaconda3/envs/AddressIntelligenceKit/python.exe -m pytest tests/ -v)",
+      "WebSearch"
+    ]
+  }
+}
