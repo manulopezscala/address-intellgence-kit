@@ -9,7 +9,7 @@ El kit expone agentes especializados (onboarding, soporte, logística, limpieza 
 ## Cliente: Ubidata
 
 - Sitio: https://ubidata.com.ar
-- API base: https://webservice.startb.com.ar
+- API base: https://webservice.startb.com.ar/ubidata-webservice
 - La API de Ubidata resuelve direcciones en lenguaje natural contra una base de direcciones argentina y devuelve candidatos georreferenciados con un score de similitud.
 
 ---
