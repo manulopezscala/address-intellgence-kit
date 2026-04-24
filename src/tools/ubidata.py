@@ -1,6 +1,8 @@
 """Herramienta de consulta a la API de Ubidata para resolución de direcciones argentinas."""
 
+import re
 from collections.abc import Callable
+from difflib import SequenceMatcher
 
 import httpx
 
@@ -13,6 +15,46 @@ _DEFAULT_COVERAGE_PREFIXES: list[str] = [
 ]
 
 _UBIDATA_ENDPOINT = "/api/query/unstructured"
+
+# Campos que se conservan en trim_ubidata_output. El resto (~40 % del token count)
+# se descarta antes de devolver el resultado al modelo.
+_KEEP_FIELDS: frozenset[str] = frozenset(
+    {
+        "result_similarity",
+        "CPA",
+        "PROVINCIA",
+        "LOCALIDAD",
+        "NOM_CALLE_ABR",
+        "BAR_NOMBRE",
+        "LATITUD",
+        "LONGITUD",
+        "HEIGHT",
+    }
+)
+
+
+# ---------------------------------------------------------------------------
+# Helpers públicos
+# ---------------------------------------------------------------------------
+
+
+def trim_ubidata_output(raw: dict) -> dict:
+    """Filtra un candidato de Ubidata conservando sólo los campos relevantes.
+
+    Reduce ~40 % del token count del tool result antes de enviarlo al modelo.
+
+    Args:
+        raw: Diccionario de un candidato devuelto por la API de Ubidata.
+
+    Returns:
+        Subconjunto del diccionario con únicamente los campos en _KEEP_FIELDS.
+    """
+    return {k: v for k, v in raw.items() if k in _KEEP_FIELDS}
+
+
+# ---------------------------------------------------------------------------
+# Helpers privados
+# ---------------------------------------------------------------------------
 
 
 def _derive_risk_level(similarity: float | None) -> str:
@@ -37,13 +79,100 @@ def _derive_risk_level(similarity: float | None) -> str:
 def _build_normalized_string(result: dict) -> str:
     """Construye una dirección normalizada legible a partir de un resultado de Ubidata.
 
+    Usa NOM_CALLE_ABR_C cuando está disponible (candidatos sin trim). Para
+    candidatos ya trimeados, recurre a NOM_CALLE_ABR + HEIGHT.
+
     Args:
-        result: Diccionario de un candidato devuelto por la API de Ubidata.
+        result: Diccionario de un candidato devuelto por la API de Ubidata
+            (completo o trimeado).
 
     Returns:
         Cadena con formato "Calle Altura, Localidad, Provincia".
     """
-    return f"{result['NOM_CALLE_ABR_C']}, {result['LOCALIDAD']}, {result['PROVINCIA']}"
+    if "NOM_CALLE_ABR_C" in result:
+        street = result["NOM_CALLE_ABR_C"]
+    else:
+        nom = result.get("NOM_CALLE_ABR", "")
+        height = result.get("HEIGHT", "")
+        street = f"{nom} {height}".strip()
+    return f"{street}, {result['LOCALIDAD']}, {result['PROVINCIA']}"
+
+
+def _compute_field_confidence(query: str, raw_result: dict) -> dict:
+    """Calcula scores de confianza por campo entre la query y el resultado de Ubidata.
+
+    Args:
+        query: Dirección original en lenguaje natural.
+        raw_result: Candidato devuelto por la API de Ubidata.
+
+    Returns:
+        Diccionario con claves street, locality, number y overall (floats 0-1).
+    """
+
+    def _ratio(a: str, b: str) -> float:
+        return SequenceMatcher(None, a.lower(), b.lower()).ratio()
+
+    street_conf = _ratio(query, raw_result.get("NOM_CALLE_ABR") or "")
+    locality_conf = _ratio(query, raw_result.get("LOCALIDAD") or "")
+
+    # Confianza del número: 1.0 si es exacto, decae linealmente hasta 0 en ±100
+    nums = re.findall(r"\d+", query)
+    height = raw_result.get("HEIGHT")
+    if nums and height is not None:
+        try:
+            diff = abs(int(nums[-1]) - int(height))
+            number_conf = max(0.0, 1.0 - diff / 100.0)
+        except (ValueError, TypeError):
+            number_conf = 0.0
+    else:
+        number_conf = 0.0
+
+    overall = float(raw_result.get("result_similarity") or 0.0)
+
+    return {
+        "street": round(street_conf, 4),
+        "locality": round(locality_conf, 4),
+        "number": round(number_conf, 4),
+        "overall": round(overall, 4),
+    }
+
+
+def _classify_http_error(exc: httpx.HTTPStatusError, query: str) -> dict:
+    """Convierte un HTTPStatusError en un dict de error estructurado.
+
+    Clasificación:
+      401 / 403 → permission, retryable=False
+      4xx restantes → business, retryable=False
+      5xx → transient, retryable=True
+
+    Args:
+        exc: Excepción HTTP capturada.
+        query: Dirección que se intentó consultar.
+
+    Returns:
+        Dict con error_type, message, retryable y attempted_query.
+    """
+    status = exc.response.status_code
+    if status in (401, 403):
+        return {
+            "error_type": "permission",
+            "message": str(exc),
+            "retryable": False,
+            "attempted_query": query,
+        }
+    if 400 <= status < 500:
+        return {
+            "error_type": "business",
+            "message": str(exc),
+            "retryable": False,
+            "attempted_query": query,
+        }
+    return {
+        "error_type": "transient",
+        "message": str(exc),
+        "retryable": True,
+        "attempted_query": query,
+    }
 
 
 async def _call_ubidata_api(query: str, max_results: int) -> list[dict]:
@@ -87,8 +216,9 @@ async def _handle_validate_address(
 
     Returns:
         Diccionario con validated, result_similarity, normalized_address, cpa,
-        coordinates, risk_level y confidence_score. En caso de error devuelve
-        un dict con error_type, message, retryable y attempted_query.
+        coordinates, risk_level, confidence_score, field_confidence y
+        needs_human_review. En caso de error devuelve un dict con error_type,
+        message, retryable y attempted_query.
     """
     try:
         results = await _call_ubidata_api(address_query, max_results)
@@ -100,13 +230,7 @@ async def _handle_validate_address(
             "attempted_query": address_query,
         }
     except httpx.HTTPStatusError as exc:
-        is_client_error = 400 <= exc.response.status_code < 500
-        return {
-            "error_type": "business" if is_client_error else "transient",
-            "message": str(exc),
-            "retryable": not is_client_error,
-            "attempted_query": address_query,
-        }
+        return _classify_http_error(exc, address_query)
     except Exception as exc:
         return {
             "error_type": "transient",
@@ -124,10 +248,15 @@ async def _handle_validate_address(
             "coordinates": None,
             "risk_level": "blocked",
             "confidence_score": 0.0,
+            "field_confidence": None,
+            "needs_human_review": True,
         }
 
     best = results[0]
     similarity: float = best["result_similarity"]
+    field_conf = _compute_field_confidence(address_query, best)
+    needs_review = field_conf["street"] < 0.7 or field_conf["locality"] < 0.8
+
     return {
         "validated": True,
         "result_similarity": similarity,
@@ -136,6 +265,8 @@ async def _handle_validate_address(
         "coordinates": {"lat": best["LATITUD"], "lng": best["LONGITUD"]},
         "risk_level": _derive_risk_level(similarity),
         "confidence_score": similarity,
+        "field_confidence": field_conf,
+        "needs_human_review": needs_review,
     }
 
 
@@ -163,13 +294,7 @@ async def _handle_normalize_address(
             "attempted_query": address_query,
         }
     except httpx.HTTPStatusError as exc:
-        is_client_error = 400 <= exc.response.status_code < 500
-        return {
-            "error_type": "business" if is_client_error else "transient",
-            "message": str(exc),
-            "retryable": not is_client_error,
-            "attempted_query": address_query,
-        }
+        return _classify_http_error(exc, address_query)
     except Exception as exc:
         return {
             "error_type": "transient",

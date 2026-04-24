@@ -16,7 +16,10 @@
       "PowerShell(& \"C:\\\\Program Files\\\\GitHub CLI\\\\gh.exe\" --version 2>$null; & \"$env:LOCALAPPDATA\\\\Programs\\\\GitHub CLI\\\\gh.exe\" --version 2>$null)",
       "Bash(UBIDATA_BASE_URL=x UBIDATA_API_KEY=x ANTHROPIC_API_KEY=x C:/Users/manue/anaconda3/envs/AddressIntelligenceKit/python.exe -m pytest tests/test_logistics.py tests/test_data_cleaning.py -v)",
       "Bash(UBIDATA_BASE_URL=x UBIDATA_API_KEY=x ANTHROPIC_API_KEY=x C:/Users/manue/anaconda3/envs/AddressIntelligenceKit/python.exe -m pytest tests/ -v)",
-      "WebSearch"
+      "WebSearch",
+      "Bash(set UBIDATA_BASE_URL=x)",
+      "Bash(set UBIDATA_API_KEY=x)",
+      "Bash(set ANTHROPIC_API_KEY=x)"
     ]
   }
 }

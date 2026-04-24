@@ -5,9 +5,10 @@ import re
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
+from src.hooks import UBIDATA_HOOKS
 from src.tools._sdk_server import UBIDATA_MCP_SERVER
 
-_MODEL = "claude-sonnet-4-20250514"
+_MODEL = "claude-haiku-4-5-20251001"
 
 # Least privilege: logistics solo aprueba/rechaza, nunca corrige
 _LOGISTICS_TOOLS = ["validate_address", "check_coverage"]
@@ -104,6 +105,7 @@ async def run_logistics_agent(address: str) -> dict:
             system_prompt=_SYSTEM_PROMPT,
             mcp_servers={"ubidata": UBIDATA_MCP_SERVER},
             allowed_tools=_LOGISTICS_TOOLS,
+            hooks=UBIDATA_HOOKS,
             model=_MODEL,
             max_turns=10,
         ),

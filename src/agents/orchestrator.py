@@ -11,7 +11,7 @@ from src.agents.onboarding import _SYSTEM_PROMPT as _ONBOARDING_PROMPT
 from src.agents.support import _SYSTEM_PROMPT as _SUPPORT_PROMPT
 from src.tools._sdk_server import UBIDATA_MCP_SERVER
 
-_MODEL = "claude-sonnet-4-20250514"
+_MODEL = "claude-haiku-4-5-20251001"
 
 # ---------------------------------------------------------------------------
 # Definiciones de subagentes

@@ -5,9 +5,10 @@ import re
 
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
+from src.hooks import UBIDATA_HOOKS
 from src.tools._sdk_server import UBIDATA_MCP_SERVER, UBIDATA_TOOL_NAMES
 
-_MODEL = "claude-sonnet-4-20250514"
+_MODEL = "claude-haiku-4-5-20251001"
 
 _SYSTEM_PROMPT = """\
 Eres un asistente de soporte para cambios de dirección de clientes existentes en Argentina.
@@ -93,6 +94,7 @@ async def run_support_agent(
             system_prompt=_SYSTEM_PROMPT,
             mcp_servers={"ubidata": UBIDATA_MCP_SERVER},
             allowed_tools=UBIDATA_TOOL_NAMES,
+            hooks=UBIDATA_HOOKS,
             model=_MODEL,
             max_turns=10,
         ),

@@ -9,10 +9,11 @@ from anthropic import AsyncAnthropic
 from claude_agent_sdk import ClaudeAgentOptions, ResultMessage, query
 
 from src import config
+from src.hooks import UBIDATA_HOOKS
 from src.tools._sdk_server import UBIDATA_MCP_SERVER
 from src.tools.ubidata import TOOL_DEFINITIONS, _handle_validate_address
 
-_MODEL = "claude-sonnet-4-20250514"
+_MODEL = "claude-haiku-4-5-20251001"
 
 # Least privilege: data cleaning solo necesita validar, no normalizar ni verificar cobertura
 _DC_TOOLS = ["validate_address"]
@@ -117,6 +118,7 @@ async def run_data_cleaning_agent(address: str) -> dict:
             system_prompt=_DC_SYSTEM_PROMPT,
             mcp_servers={"ubidata": UBIDATA_MCP_SERVER},
             allowed_tools=_DC_TOOLS,
+            hooks=UBIDATA_HOOKS,
             model=_MODEL,
             max_turns=5,
         ),
